@@ -12,5 +12,3 @@ Slider to configure detail level of summaries.
 Next page: 
 Cells for each of the articles. Each article will have a summary. 
 Below the articles, chatbox. You can chat with GPT about the articles and ask it other related (or unrelated) questions. 
-
-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

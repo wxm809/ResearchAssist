@@ -60,7 +60,7 @@ class Conversation:
             graph=graph,
             name=f"Graph Index",
             description="useful for when you want to answer queries that require analyzing multiple papers.",
-            query_configs=query_configs,
+            query_configs=QUERY_CONFIG,
             tool_kwargs={"return_direct": True}
         )
         index_configs = []

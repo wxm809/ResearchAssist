@@ -1,9 +1,13 @@
-from flask import Flask, jsonify, request, render_template
+from flask import Flask, jsonify, request, render_template, redirect, url_for
 import json
 import pickle
 import sqlite3
 from classes import User, Conversation
 from llama_index import GPTSimpleVectorIndex
+import os
+from werkzeug.utils import secure_filename
+
+
 CONNECTION = sqlite3.connect('researchassist.db')
 CURSOR = CONNECTION.cursor()
 CURSOR.execute('CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, data BLOB)')
@@ -18,8 +22,7 @@ class UserNotInDatabaseException(Exception):
 class ConversationNotFoundException(Exception):
     pass
 
-#app = Flask(__name__)
-#app.debug(True)
+app = Flask(__name__)
 
 def putUser(user: User):
     userData = pickle.dumps(user)
@@ -43,7 +46,9 @@ def getUser(id: int) -> User:
         raise UserNotInDatabaseException
     return pickle.loads(userData)
 
-def handleFileUpload(request: request)-> GPTSimpleVectorIndex:
+
+@app.route('/upload', methods=['POST'])
+def handleFileUpload(request: request):
     id = request.cookies.get('user_id')
     try:
         user = getUser(id)
@@ -52,7 +57,16 @@ def handleFileUpload(request: request)-> GPTSimpleVectorIndex:
         putUser(user)
     index = user.constructIndex(request)
     updateUser(user)
-    return index
+    # generate redirect to upload-complete
+    return redirect('/upload-complete', code=302)
+
+@app.route('/')
+def index():
+    return render_template("index.html")
+
+@app.route('/upload-complete')
+def uploadComplete():
+    return render_template("upload-complete.html")
 
 def ask(request: request) -> str:
     id = request.cookies.get('user_id')
@@ -81,7 +95,8 @@ if __name__ == '__main__':
     DEBUG=False
     if DEBUG:
         clearDatabase()
-    mainFn()
+        mainFn()
+    app.run()
 
 
 

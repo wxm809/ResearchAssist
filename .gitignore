@@ -2,3 +2,5 @@
 .vscode
 requirements.txt
 venv/
+database.db
+

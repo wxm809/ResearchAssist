@@ -1,53 +1,87 @@
-import os
-import OpenAI
-from llama_index import Document, GPTSimpleVectorIndex, SimpleNodeParser
-from multiprocessing import Process
 from flask import Flask, jsonify, request, render_template
 import json
 import pickle
 import sqlite3
+from classes import User, Conversation
 
 CONNECTION = sqlite3.connect('researchassist.db')
 CURSOR = CONNECTION.cursor()
-class Conversation:
-    def __init__(self, subject, index):
-        self.index = index
-        self.subject = subject
-        self.messages = []
-    def index(self):
-        return self.index
-    def messages(self):
-        return self.messages
-    def addMessage(self, message):
-        self.messages.append(message)
-    def subject(self):
-        return self.subject
+CURSOR.execute('CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, data BLOB)')
+CONNECTION.commit()
 
-class User:
-    def __init__(self, id):
-        self.id = id 
-        self.conversations = {}
-    def id(self):
-        return self.user_id
-    def constructIndex(self, request):
-        if(request.files.getlist('pdfs') == []):
-            return None
-        documents = [Document(t) for t in request.files.getlist('pdfs')] #get pdfs from request and read them into a list of Documents
-        index = GPTSimpleVectorIndex(SimpleNodeParser().get_nodes_from_documents(documents)) #create index from documents
-        self.conversations.put(request.SOMETHING, Conversation(request.SOMETHIGNG_ELSE, index)) #TODO: MAKE CONVERSATION ID DEPEND ON COOKIES 
-        return index
-    def conversations(self):
-        return self.conversations
+class InsertedExistingUserException(Exception):
+    pass
 
-app = Flask(__name__)
-app.debug(True)
+class UserNotInDatabaseException(Exception):
+    pass
 
-def putUser(user):
-    CURSOR.execute('INSERT INTO users VALUES(?)', (user.id,))
+class ConversationNotFoundException(Exception):
+    pass
 
-def upload(request):
-    user = User(request.cookies.get('user_id'))
+#app = Flask(__name__)
+#app.debug(True)
 
+def putUser(user: User):
+    userData = pickle.dumps(user)
+    try:
+        CURSOR.execute('INSERT INTO users (id, data) VALUES (?, ?)', (user.id, userData))
+        CONNECTION.commit()
+    except sqlite3.IntegrityError:
+        raise InsertedExistingUserException
+
+def updateUser(user: User):
+    userData = pickle.dumps(user)
+    CURSOR.execute('UPDATE users SET data=? WHERE id=?', (userData, user.id))
+    CONNECTION.commit()
+    if(CURSOR.rowcount == 0):
+        raise UserNotInDatabaseException
+
+def getUser(id: int) -> User:
+    CURSOR.execute('SELECT data FROM users WHERE id=?', (id,))
+    userData = CURSOR.fetchone()[0]
+    if userData is None:
+        raise UserNotInDatabaseException
+    return pickle.loads(userData)
+
+def handleFileUpload(request: request)-> GPTSimpleVectorIndex:
+    id = request.cookies.get('user_id')
+    try:
+        user = getUser(id)
+    except UserNotInDatabaseException:
+        user = User(id)
+        putUser(user)
     index = user.constructIndex(request)
+    updateUser(user)
     return index
-    
+
+def ask(request: request) -> str:
+    id = request.cookies.get('user_id')
+    user = getUser(id) #watch out for UserNotInDatabaseException when calling ask!
+    conversation = user.conversations.get(request.SOMETHING)
+    if conversation is None:
+        raise ConversationNotFoundException
+    userPrompt = request.SOMETHING_ELSE
+    response = 
+
+def clearDatabase():
+    CURSOR.execute('DELETE FROM users')
+    CONNECTION.commit()
+
+def mainFn():
+    user = User(5000)
+    user.conversations['test'] = Conversation('test', None)
+    try:
+        putUser(user)
+    except InsertedExistingUserException:
+        print('User already exists')
+    user = getUser(5000)
+    print(user.conversations['test'].subject)
+
+if __name__ == '__main__':
+    DEBUG=False
+    if DEBUG:
+        clearDatabase()
+    mainFn()
+
+
+

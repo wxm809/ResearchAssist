@@ -3,6 +3,8 @@ from langchain.agents import Tool, initialize_agent
 from langchain.chains.conversation.memory import ConversationBufferMemory
 from langchain.chat_models import ChatOpenAI
 
+from flask import Flask, jsonify, request, render_template
+
 
 from llama_index import Document, GPTSimpleVectorIndex, LLMPredictor, PromptHelper, ServiceContext, GPTListIndex
 from llama_index.indices.composability import ComposableGraph
@@ -18,18 +20,19 @@ PREDICTOR = LLMPredictor(llm = OpenAI(temperature = 0.2, model_name = 'gpt-3.5-t
 
 
 class Conversation:
-    def __init__(self, subject: str, graph: ComposableGraph, indices: dict):
+    def __init__(self, subject: str, graph: ComposableGraph, indices: dict, disable: bool = False):
         self.graph = graph
         self.subject = subject
-        self.indices = indices
-        self.toolkit = self.makeToolkit(graph, indices)
-        self.memory = ConversationBufferMemory(memory_key = "chat_history")
-        self.agent_chain = create_llama_chat_agent(
-            self.toolkit,
-            OpenAI(temperature = 0.2, model_name = 'gpt-3.5-turbo', max_tokens=maxOutput),
-            memory=self.memory,
-            verbose=True
-        )
+        if not disable:
+            self.indices = indices
+            self.toolkit = self.makeToolkit(graph, indices)
+            self.memory = ConversationBufferMemory(memory_key = "chat_history")
+            self.agent_chain = create_llama_chat_agent(
+                self.toolkit,
+                OpenAI(temperature = 0.2, model_name = 'gpt-3.5-turbo', max_tokens=maxOutput),
+                memory=self.memory,
+                verbose=True
+            )
         
     def makeToolkit(self, graph: ComposableGraph, indices: dict) -> LlamaToolkit:
         decompose_transform = DecomposeQueryTransform(PREDICTOR, verbose=True)

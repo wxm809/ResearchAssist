@@ -3,7 +3,7 @@ import json
 import pickle
 import sqlite3
 from classes import User, Conversation
-
+from llama_index import GPTSimpleVectorIndex
 CONNECTION = sqlite3.connect('researchassist.db')
 CURSOR = CONNECTION.cursor()
 CURSOR.execute('CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, data BLOB)')
@@ -61,7 +61,7 @@ def ask(request: request) -> str:
     if conversation is None:
         raise ConversationNotFoundException
     userPrompt = request.SOMETHING_ELSE
-    response = 
+    response = ""
 
 def clearDatabase():
     CURSOR.execute('DELETE FROM users')
@@ -69,7 +69,7 @@ def clearDatabase():
 
 def mainFn():
     user = User(5000)
-    user.conversations['test'] = Conversation('test', None)
+    user.conversations['test'] = Conversation('test', None, None, True)
     try:
         putUser(user)
     except InsertedExistingUserException:

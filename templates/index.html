@@ -1,15 +1,43 @@
 <!DOCTYPE html>
 <html>
-  <head>
-    <meta charset="utf-8">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/water.css@2/out/water.css">
-    <title>ResearchAssist</title>
-  </head>
-  <body>
-    <h1>ResearchAssist</h1>
-    <h2>Upload files here</h2>
-    <form action="/upload" method="post" enctype="multipart/form-data">
-      <input type="file" name="files" multiple="multiple"/>
-      <input type="submit" value="Upload" />
-  </body>
+
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/water.css@2/out/water.css">
+  <title>ResearchAssist</title>
+</head>
+
+<body>
+  <h1>ResearchAssist</h1>
+  <h2>Upload files here. Change the name of the files to the title of the articles for best behavior!</h2>
+  <form action="{{ url_for('/upload') }}" method="POST" enctype="multipart/form-data">
+    <label for "subject">Subject:</label>
+    <input type="text" id ="subject" name = "subject">
+    <br>
+    <input type="file" name="files" multiple="multiple" onchange="validateFiles(this)" />
+    <input type="hidden" name="user_id" value="{{ user_id }}">
+    <input type="submit" value="Upload" />
+    <script>
+      // Optional JavaScript to disable the submit button until at least one file is selected
+      const fileInput = document.querySelector('input[type="file"]');
+      const submitButton = document.querySelector('button[type="submit"]');
+      fileInput.addEventListener('change', () => {
+        submitButton.disabled = fileInput.files.length === 0;
+      });
+      function validateFiles(input) {
+        // Get an array of all selected files
+        var files = input.files;
+        // Iterate over each selected file
+        for (var i = 0; i < files.length; i++) {
+          // Check if the file has a PDF file extension
+          if (!files[i].name.endsWith('.pdf')) {
+            // Display an alert message and clear the file input
+            alert('Please select a PDF file.');
+            input.value = 0;
+            return;
+          }
+        }
+      }
+    </script>
+</body>
 </html>

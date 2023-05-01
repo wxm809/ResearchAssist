@@ -8,6 +8,11 @@
   <body>
     <h1>ResearchAssist</h1>
     <h2>Upload Complete</h2>
-    <p>Yay</p>
+    <p>The following document(s) were uploaded:</p>
+    <ul>
+        {% for document in documents %}
+            <li>{{ document.extra_info }}</li>
+        {% endfor %}
+    </ul>
   </body>
 </html>

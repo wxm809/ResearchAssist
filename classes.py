@@ -4,7 +4,9 @@ from langchain.chains.conversation.memory import ConversationBufferMemory
 from langchain.chat_models import ChatOpenAI
 
 from flask import Flask, jsonify, request, render_template
-
+from werkzeug import FileStorage
+import PyPDF2
+from io import BytesIO
 
 from llama_index import Document, GPTSimpleVectorIndex, LLMPredictor, PromptHelper, ServiceContext, GPTListIndex
 from llama_index.indices.composability import ComposableGraph
@@ -20,10 +22,11 @@ PREDICTOR = LLMPredictor(llm = OpenAI(temperature = 0.2, model_name = 'gpt-3.5-t
 
 
 class Conversation:
-    def __init__(self, subject: str, graph: ComposableGraph, indices: dict, disable: bool = False):
-        self.graph = graph
+    def __init__(self, subject: str, graph: ComposableGraph, indices: dict, documents: list(Document), disable: bool = False):
+        self.documents = documents
         self.subject = subject
         if not disable:
+            self.graph = graph
             self.indices = indices
             self.toolkit = self.makeToolkit(graph, indices)
             self.memory = ConversationBufferMemory(memory_key = "chat_history")
@@ -79,25 +82,41 @@ class Conversation:
         )
 
 class User:
-    def __init__(self, id: int):
+    def __init__(self, id: str):
         self.id = id 
         self.conversations = {}
-    def constructGraphFromRequest(self, request: request) -> GPTSimpleVectorIndex:
-        if(request.files.getlist('pdfs') == []):
+    def constructGraphFromRequest(self, subject:str, files: list(FileStorage), disable: bool = False) -> GPTSimpleVectorIndex:
+        if files == [] or files is None:
             return None
-        documents = [Document(t) for t in request.files.getlist('pdfs')] #get pdfs from request and read them into a list of Documents
-        indices = {}
-        serviceContext = ServiceContext.from_defaults(llm_predictor = PREDICTOR, prompt_helper=PROMPT_HELPER)
-        for document in documents:
-            title = 'PLACEHOLDER: ARTICLE TITLE. USE REQUEST'
-            document.extra_info = title
-            indices[title] = GPTSimpleVectorIndex(document, serviceContext)
-        indexSummaries = [summarize(index) for index in indices.values()] #TODO: Write summarize
-        graph = ComposableGraph.from_indices(
-            GPTListIndex,
-            indices.values(),
-            index_summaries = indexSummaries,
-            service_context = serviceContext
-        ) #create graph from indices
-        self.conversations.put(request.SOMETHING, Conversation(request.SOMETHIGNG_ELSE, graph, indices)) #TODO: MAKE CONVERSATION ID DEPEND ON COOKIES 
+        #Extract text from pdfs
+        contents = [t.stream.read() for t in files] 
+        file_streams = BytesIO(contents)
+        pdf_contents = []
+        for file in file_streams:
+            reader = PyPDF2.PdfFileReader(file)
+            for page in range(reader.getNumPages()):
+                text += reader.getPage(page).extractText()
+            pdf_contents.append(text)
+
+        #Make Documents from the PDF contents
+        documents = [Document(t) for t in pdf_contents]
+        if not disable:
+            #Make indices from the documents
+            indices = {}
+            serviceContext = ServiceContext.from_defaults(llm_predictor = PREDICTOR, prompt_helper=PROMPT_HELPER)
+            for i, document in enumerate(documents):
+                title = files[i].filename
+                document.extra_info = title
+                indices[title] = GPTSimpleVectorIndex(document, serviceContext)
+            indexSummaries = [summarize(index) for index in indices.values()] #TODO: Write summarize
+            graph = ComposableGraph.from_indices(
+                GPTListIndex,
+                indices.values(),
+                index_summaries = indexSummaries,
+                service_context = serviceContext
+            ) #create graph from indices
+        self.conversations.put(subject, Conversation(subject, graph, indices, documents, disable = disable)) #TODO: MAKE CONVERSATION ID DEPEND ON COOKIES 
         return graph
+
+def summarize(index: GPTSimpleVectorIndex) -> str:
+    return "PLACEHOLDER: WRITE SUMMARY"

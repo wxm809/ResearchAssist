@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, request, render_template, redirect, url_for
+from flask import Flask, jsonify, request, render_template, redirect, url_for, make_response
 import json
 import pickle
 import sqlite3
@@ -6,11 +6,12 @@ from classes import User, Conversation
 from llama_index import GPTSimpleVectorIndex
 import os
 from werkzeug.utils import secure_filename
-
+from flask_socketio import SocketIO, emit
+import uuid
 
 CONNECTION = sqlite3.connect('researchassist.db')
 CURSOR = CONNECTION.cursor()
-CURSOR.execute('CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, data BLOB)')
+CURSOR.execute('CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, data BLOB)')
 CONNECTION.commit()
 
 class InsertedExistingUserException(Exception):
@@ -23,6 +24,8 @@ class ConversationNotFoundException(Exception):
     pass
 
 app = Flask(__name__)
+
+socketio = SocketIO(app)
 
 def putUser(user: User):
     userData = pickle.dumps(user)
@@ -48,27 +51,59 @@ def getUser(id: int) -> User:
 
 
 @app.route('/upload', methods=['POST'])
-def handleFileUpload(request: request):
+def handleFileUpload():
     id = request.cookies.get('user_id')
+    files = request.files.getlist('files')
+    subject = request.form('subject')
     try:
         user = getUser(id)
     except UserNotInDatabaseException:
-        user = User(id)
-        putUser(user)
-    index = user.constructIndex(request)
+        print("uh oh")
+        if not id:
+            print("no id generated")
+            return newUser()
+        else:
+            print("user never put in database, but id exists")
+            user = User(id)
+            putUser(user)
+    for file in files:
+        # Check if the file has a PDF file extension
+        if file and file.filename.endswith('.pdf'):
+            # Generate a secure filename and save the file to disk
+            filename = secure_filename(file.filename)
+        else:
+            return redirect(url_for('index'))
+    user.constructGraphFromRequest(subject, files, disable = True)
     updateUser(user)
     # generate redirect to upload-complete
-    return redirect('/upload-complete', code=302)
+    return redirect(url_for('/upload-complete'))
+
+def newUser():
+    user_id = str(uuid.uuid4())
+    response = make_response(render_template('index.html'))
+    putUser(User(user_id))
+    response.set_cookie('user_id', user_id)
+    return response
 
 @app.route('/')
 def index():
-    return render_template("index.html")
+    user_id = request.cookies.get('user_id')
+    if not user_id:
+        return newUser()
+    else:
+        return render_template('index.html')
 
 @app.route('/upload-complete')
 def uploadComplete():
-    return render_template("upload-complete.html")
+    user_id = request.cookies.get('user_id')
+    if not user_id:
+        return newUser()
+    else:
+        user = getUser(user_id)
+        documents = user.conversations
+        return render_template("upload-complete.html")
 
-def ask(request: request) -> str:
+def ask() -> str:
     id = request.cookies.get('user_id')
     user = getUser(id) #watch out for UserNotInDatabaseException when calling ask!
     conversation = user.conversations.get(request.SOMETHING)
@@ -96,7 +131,7 @@ if __name__ == '__main__':
     if DEBUG:
         clearDatabase()
         mainFn()
-    app.run()
+    socketio.run(app)
 
 
 

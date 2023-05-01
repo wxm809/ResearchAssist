@@ -9,10 +9,15 @@ from werkzeug.utils import secure_filename
 from flask_socketio import SocketIO, emit
 import uuid
 
-CONNECTION = sqlite3.connect('researchassist.db')
-CURSOR = CONNECTION.cursor()
-CURSOR.execute('CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, data BLOB)')
-CONNECTION.commit()
+def CONNECT():
+    return sqlite3.connect('researchassist.db')
+
+connection = CONNECT()
+cursor = connection.cursor()
+cursor.execute('CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, data BLOB)')
+connection.commit()
+connection.close()
+
 
 class InsertedExistingUserException(Exception):
     pass
@@ -29,22 +34,34 @@ socketio = SocketIO(app)
 
 def putUser(user: User):
     userData = pickle.dumps(user)
+    print("Here")
+    print(len(userData))
+    connection  = CONNECT()
+    cursor = connection.cursor()
     try:
-        CURSOR.execute('INSERT INTO users (id, data) VALUES (?, ?)', (user.id, userData))
-        CONNECTION.commit()
+        cursor.execute('INSERT INTO users (id, data) VALUES (?, ?)', (str(user.id), userData))
+        connection.commit()
     except sqlite3.IntegrityError:
         raise InsertedExistingUserException
+    finally:
+        connection.close()
 
 def updateUser(user: User):
     userData = pickle.dumps(user)
-    CURSOR.execute('UPDATE users SET data=? WHERE id=?', (userData, user.id))
-    CONNECTION.commit()
-    if(CURSOR.rowcount == 0):
+    connection  = CONNECT()
+    cursor = connection.cursor()
+    cursor.execute('UPDATE users SET data=? WHERE id=?', (userData, str(user.id)))
+    connection.commit()
+    connection.close()
+    if(cursor.rowcount == 0):
         raise UserNotInDatabaseException
 
-def getUser(id: int) -> User:
-    CURSOR.execute('SELECT data FROM users WHERE id=?', (id,))
-    userData = CURSOR.fetchone()[0]
+def getUser(id: str) -> User:
+    connection = CONNECT()
+    cursor = connection.cursor()
+    cursor.execute('SELECT data FROM users WHERE id=?', (str(id),))
+    userData = cursor.fetchone()[0]
+    connection.close()
     if userData is None:
         raise UserNotInDatabaseException
     return pickle.loads(userData)
@@ -76,12 +93,16 @@ def handleFileUpload():
     user.constructGraphFromRequest(subject, files, disable = True)
     updateUser(user)
     # generate redirect to upload-complete
-    return redirect(url_for('/upload-complete'))
+    return redirect(url_for('/conversation', conversation_subject = subject))
 
 def newUser():
+    print("there")
     user_id = str(uuid.uuid4())
-    response = make_response(render_template('index.html'))
-    putUser(User(user_id))
+    try:
+        putUser(User(user_id))
+    except InsertedExistingUserException:
+        return newUser()
+    response = make_response(render_template('index.html'), conversations = [])
     response.set_cookie('user_id', user_id)
     return response
 
@@ -91,18 +112,18 @@ def index():
     if not user_id:
         return newUser()
     else:
-        return render_template('index.html')
+        return render_template('index.html', conversations = getUser(user_id).conversations.keys())
 
-@app.route('/upload-complete')
-def uploadComplete():
+@app.route('/conversation')
+def conversation(conversation_subject: str):
     user_id = request.cookies.get('user_id')
     if not user_id:
         return newUser()
     else:
         user = getUser(user_id)
-        documents = user.conversations
-        return render_template("upload-complete.html")
-
+        conversation = user.conversations.get(conversation_subject)
+        return render_template("conversation.html", subject = conversation.subject, documents=conversation.documents)
+""" 
 def ask() -> str:
     id = request.cookies.get('user_id')
     user = getUser(id) #watch out for UserNotInDatabaseException when calling ask!
@@ -110,27 +131,21 @@ def ask() -> str:
     if conversation is None:
         raise ConversationNotFoundException
     userPrompt = request.SOMETHING_ELSE
-    response = ""
+    response = "" """
 
 def clearDatabase():
-    CURSOR.execute('DELETE FROM users')
-    CONNECTION.commit()
-
-def mainFn():
-    user = User(5000)
-    user.conversations['test'] = Conversation('test', None, None, True)
-    try:
-        putUser(user)
-    except InsertedExistingUserException:
-        print('User already exists')
-    user = getUser(5000)
-    print(user.conversations['test'].subject)
+    connection = CONNECT()
+    cursor = connection.cursor()
+    cursor.execute('DELETE FROM users')
+    connection.commit()
+    cursor.execute('VACUUM')
+    connection.commit()
+    connection.close()
 
 if __name__ == '__main__':
-    DEBUG=False
-    if DEBUG:
+    CLEAR=True
+    if CLEAR:
         clearDatabase()
-        mainFn()
     socketio.run(app)
 
 

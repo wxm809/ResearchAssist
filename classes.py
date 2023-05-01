@@ -1,10 +1,10 @@
-from langchain import OpenAI
+from langchain.chat_models import ChatOpenAI
 from langchain.agents import Tool, initialize_agent
 from langchain.chains.conversation.memory import ConversationBufferMemory
 from langchain.chat_models import ChatOpenAI
 
 from flask import Flask, jsonify, request, render_template
-from werkzeug import FileStorage
+from werkzeug.datastructures import FileStorage
 import PyPDF2
 from io import BytesIO
 
@@ -17,12 +17,12 @@ maxInputSize = 4096
 maxOutput = 2000
 maxChunkOverlap=20
 PROMPT_HELPER = PromptHelper(maxInputSize, maxOutput, maxChunkOverlap)
-PREDICTOR = LLMPredictor(llm = OpenAI(temperature = 0.2, model_name = 'gpt-3.5-turbo', max_tokens=maxOutput))
+PREDICTOR = LLMPredictor(llm = ChatOpenAI(temperature = 0.2, model_name = 'gpt-3.5-turbo', max_tokens=maxOutput))
 
 
 
 class Conversation:
-    def __init__(self, subject: str, graph: ComposableGraph, indices: dict, documents: list(Document), disable: bool = False):
+    def __init__(self, subject: str, graph: ComposableGraph, indices: dict, documents: list, disable: bool = False):
         self.documents = documents
         self.subject = subject
         if not disable:
@@ -32,7 +32,7 @@ class Conversation:
             self.memory = ConversationBufferMemory(memory_key = "chat_history")
             self.agent_chain = create_llama_chat_agent(
                 self.toolkit,
-                OpenAI(temperature = 0.2, model_name = 'gpt-3.5-turbo', max_tokens=maxOutput),
+                ChatOpenAI(temperature = 0.2, model_name = 'gpt-3.5-turbo', max_tokens=maxOutput),
                 memory=self.memory,
                 verbose=True
             )
@@ -83,9 +83,9 @@ class Conversation:
 
 class User:
     def __init__(self, id: str):
-        self.id = id 
+        self.id = str(id) 
         self.conversations = {}
-    def constructGraphFromRequest(self, subject:str, files: list(FileStorage), disable: bool = False) -> GPTSimpleVectorIndex:
+    def constructGraphFromRequest(self, subject:str, files: list, disable: bool = False) -> GPTSimpleVectorIndex:
         if files == [] or files is None:
             return None
         #Extract text from pdfs

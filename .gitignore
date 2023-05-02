@@ -1,7 +1,6 @@
 .DS_Store
 __pycache__/
 .vscode
-requirements.txt
 venv/
 researchassist.db
 users/

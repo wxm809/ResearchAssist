@@ -1,6 +1,6 @@
 from flask import Flask, jsonify, request, render_template, redirect, url_for, make_response
 import json
-import pickle
+import dill as pickle
 from classes import User, Conversation
 from llama_index import GPTSimpleVectorIndex
 import os

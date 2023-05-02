@@ -4,3 +4,4 @@ __pycache__/
 requirements.txt
 venv/
 researchassist.db
+users/

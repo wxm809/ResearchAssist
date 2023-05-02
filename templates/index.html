@@ -11,17 +11,17 @@
   <h1>ResearchAssist</h1>
   <h2>Upload files here. Change the name of the files to the title of the articles for best behavior!</h2>
   <p>Note: Files should total less than ~1.5gb for each conversation</p>
-  <form action="{{ url_for('handleFileUpload') }}" method="POST" enctype="multipart/form-data">
+  <form action="{{ url_for('handleFileUpload') }}" method="POST" style="display: inline-block" id="uploadForm" enctype="multipart/form-data">
     <label for="subject">Conversation Subject:</label>
     <input type="text" id ="subject" name = "subject">
-    <input type="file" name="files" multiple="multiple" onchange="validateFiles(this)" />
+    <input type="file" name="files" id="files" multiple="multiple" onchange="validateFiles(this)" />
     <input type="hidden" name="user_id" value="{{ user_id }}">
-    <input type="submit" value="Upload" />
+    <input type="submit" id="upload" value="Upload" />
   </form>
   {% if conversations is defined and conversations|length %}
-    <p>Previous conversations: </p>
+    <h2>Previous conversations: </h2>
     {% for conversation_subject_loopvar in conversations %}
-      <form METHOD="GET" action="{{ url_for('conversation', conversation_subject=conversation_subject_loopvar)}}">
+      <form METHOD="GET" style="display: inline-block" action="{{ url_for('conversation', conversation_subject=conversation_subject_loopvar)}}">
         <input type="hidden" name="user_id" value="{{ user_id }}">
         <button type="submit">{{ conversation_subject_loopvar }}</button>
       </form>
@@ -29,13 +29,13 @@
   {% endif %}
   <script>
 
-    const fileInput = document.querySelector('input[type="file"]');
-    const submitButton = document.querySelector('button[type="submit"]');
+    const fileInput = document.getElementById('files');
+    const submitButton = document.getElementById('upload');
     fileInput.addEventListener('change', () => {
       submitButton.disabled = fileInput.files.length === 0;
     });
 
-    const form = document.querySelector('form');
+    const form = document.getElementById("uploadForm");
     const subjectInput = document.getElementById('subject');
 
     form.addEventListener('submit', (event) => {

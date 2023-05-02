@@ -1,16 +1,18 @@
 from flask import Flask, jsonify, request, render_template, redirect, url_for, make_response
 import json
 import pickle
-import sqlite3
 from classes import User, Conversation
 from llama_index import GPTSimpleVectorIndex
 import os
 from werkzeug.utils import secure_filename
 from flask_socketio import SocketIO, emit
 import uuid
+import os
 
-def CONNECT():
-    return sqlite3.connect('researchassist.db')
+USER_OBJECTS_PATH = 'users'
+print(os.getcwd())
+if not os.path.exists(USER_OBJECTS_PATH):
+    os.makedirs(USER_OBJECTS_PATH)
 
 class InsertedExistingUserException(Exception):
     pass
@@ -21,44 +23,35 @@ class UserNotInDatabaseException(Exception):
 class ConversationNotFoundException(Exception):
     pass
 
+def userPath(user_id: str) -> str:
+    return os.path.join(USER_OBJECTS_PATH, f"{user_id}.pkl")
+
 app = Flask(__name__)
 
 socketio = SocketIO(app)
 
 def putUser(user: User):
-    userData = pickle.dumps(user)
+    if(os.path.exists(userPath(user.id))):
+        raise InsertedExistingUserException()
     print("Putting user")
-    connection  = CONNECT()
-    cursor = connection.cursor()
-    try:
-        cursor.execute('INSERT INTO users (id, data) VALUES (?, ?)', (str(user.id), userData))
-        connection.commit()
-    except sqlite3.IntegrityError:
-        raise InsertedExistingUserException
-    finally:
-        connection.close()
+    path = userPath(user.id)
+    with open(path, 'wb') as f:
+        pickle.dump(user, f)
 
 def updateUser(user: User):
-    print("updating user")
-    userData = pickle.dumps(user)
-    connection  = CONNECT()
-    cursor = connection.cursor()
-    cursor.execute('UPDATE users SET data=? WHERE id=?', (userData, str(user.id)))
-    connection.commit()
-    connection.close()
-    if(cursor.rowcount == 0):
-        raise UserNotInDatabaseException
+    print("Upload user")
+    path = userPath(user.id)
+    with open(path, 'wb') as f:
+        pickle.dump(user, f)
 
 def getUser(id: str) -> User:
-    connection = CONNECT()
-    cursor = connection.cursor()
     print('in getuser')
-    cursor.execute('SELECT data FROM users WHERE id=?', (str(id),))
-    response = cursor.fetchone()
-    connection.close()
-    if response is None:
+    path = userPath(id)
+    if not os.path.exists(path):
         raise UserNotInDatabaseException
-    return pickle.loads(response[0])
+    with open (path, 'rb') as f:
+        user = pickle.load(f)
+    return user
 
 @app.route('/upload', methods=['POST'])
 def handleFileUpload():
@@ -76,11 +69,10 @@ def handleFileUpload():
             putUser(user)
     for file in files:
         # Check if the file has a PDF file extension
-        if file and file.filename.endswith('.pdf'):
-            # Generate a secure filename and save the file to disk
-            filename = secure_filename(file.filename)
-        else:
-            return redirect(url_for('index'))
+        if not file or not file.filename.endswith('.pdf'):
+            files.remove(file)
+    if(len(files) == 0):
+        return redirect(url_for('index'))
     user.constructGraphFromRequest(subject, files, disable = True)
     updateUser(user)
     # generate redirect to upload-complete
@@ -98,6 +90,7 @@ def newUser():
 
 @app.route('/')
 def index():
+    print(os.getcwd())
     user_id = request.cookies.get('user_id')
     print("index", user_id)
     if not user_id:
@@ -139,21 +132,7 @@ def ask() -> str:
     userPrompt = request.SOMETHING_ELSE
     response = "" """
 
-""" def clearDatabase():
-    connection = CONNECT()
-    cursor = connection.cursor()
-    cursor.execute("DROP TABLE users")
-    cursor.execute('CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, data BLOB)')
-    connection.commit()
-    connection.close() """
-
 if __name__ == '__main__':
-    connection = CONNECT()
-    cursor = connection.cursor()
-    cursor.execute('CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, data BLOB)')
-    connection.commit()
-    connection.close()
     socketio.run(app, host = "127.0.0.1", port= 6969, debug=True)
-
 
 

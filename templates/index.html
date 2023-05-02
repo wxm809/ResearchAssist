@@ -10,19 +10,17 @@
 <body>
   <h1>ResearchAssist</h1>
   <h2>Upload files here. Change the name of the files to the title of the articles for best behavior!</h2>
-  <h3>Note: Files should total less than ~1.5gb</h3>
-  <form action="{{ url_for('/upload') }}" method="POST" enctype="multipart/form-data">
+  <p>Note: Files should total less than ~1.5gb for each conversation</p>
+  <form action="{{ url_for('handleFileUpload') }}" method="POST" enctype="multipart/form-data">
     <label for="subject">Conversation Subject:</label>
     <input type="text" id ="subject" name = "subject">
-    <br>
     <input type="file" name="files" multiple="multiple" onchange="validateFiles(this)" />
     <input type="hidden" name="user_id" value="{{ user_id }}">
     <input type="submit" value="Upload" />
   </form>
-  <br>
   {% if conversations is defined and conversations|length %}
     <p>Previous conversations: </p>
-    {% for conversation_subject_loopvar in conversations.keys() %}
+    {% for conversation_subject_loopvar in conversations %}
       <form METHOD="GET" action="{{ url_for('conversation', conversation_subject=conversation_subject_loopvar)}}">
         <input type="hidden" name="user_id" value="{{ user_id }}">
         <button type="submit">{{ conversation_subject_loopvar }}</button>
@@ -35,6 +33,17 @@
     const submitButton = document.querySelector('button[type="submit"]');
     fileInput.addEventListener('change', () => {
       submitButton.disabled = fileInput.files.length === 0;
+    });
+
+    const form = document.querySelector('form');
+    const subjectInput = document.getElementById('subject');
+
+    form.addEventListener('submit', (event) => {
+      const subjectValue = subjectInput.value.trim();
+      if (subjectValue === '') {
+        event.preventDefault();
+        alert('Please enter a subject for the conversation.');
+      }
     });
 
 

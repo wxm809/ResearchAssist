@@ -90,24 +90,29 @@ class User:
             return None
         #Extract text from pdfs
         contents = [t.stream.read() for t in files] 
-        file_streams = BytesIO(contents)
+        file_streams = [BytesIO(content) for content in contents]
         pdf_contents = []
         for file in file_streams:
-            reader = PyPDF2.PdfFileReader(file)
-            for page in range(reader.getNumPages()):
-                text += reader.getPage(page).extractText()
+            reader = PyPDF2.PdfReader(file)
+            text= ""
+            for page in range(len(reader.pages)):
+                text += reader.pages[page].extract_text()
             pdf_contents.append(text)
 
         #Make Documents from the PDF contents
         documents = [Document(t) for t in pdf_contents]
+        for i, document in enumerate(documents):
+            document.extra_info = files[i].filename
+        graph = None
+        indices = None
+
+
         if not disable:
             #Make indices from the documents
             indices = {}
             serviceContext = ServiceContext.from_defaults(llm_predictor = PREDICTOR, prompt_helper=PROMPT_HELPER)
-            for i, document in enumerate(documents):
-                title = files[i].filename
-                document.extra_info = title
-                indices[title] = GPTSimpleVectorIndex(document, serviceContext)
+            for document in documents:
+                indices[document.extra_info] = GPTSimpleVectorIndex(document, serviceContext)
             indexSummaries = [summarize(index) for index in indices.values()] #TODO: Write summarize
             graph = ComposableGraph.from_indices(
                 GPTListIndex,
@@ -115,7 +120,7 @@ class User:
                 index_summaries = indexSummaries,
                 service_context = serviceContext
             ) #create graph from indices
-        self.conversations.put(subject, Conversation(subject, graph, indices, documents, disable = disable)) #TODO: MAKE CONVERSATION ID DEPEND ON COOKIES 
+        self.conversations[subject] = Conversation(subject, graph, indices, documents, disable = disable) 
         return graph
 
 def summarize(index: GPTSimpleVectorIndex) -> str:

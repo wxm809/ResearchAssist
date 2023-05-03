@@ -1,3 +1,5 @@
 Git repo: https://github.com/wesgm/ResearchAssist
 
 GPT app that allows you to input an arbitrary number of PDFS and query GPT about them. GPT will also produce summaries of each article. 
+
+Uses Python and Javascript with LlamaIndex, Flask, SocketIO, Preact, and Langchain. 

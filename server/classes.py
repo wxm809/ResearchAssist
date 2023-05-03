@@ -1,10 +1,7 @@
 from langchain.chat_models import ChatOpenAI
-from langchain.agents import Tool, initialize_agent
 from langchain.chains.conversation.memory import ConversationBufferWindowMemory
 from langchain.chat_models import ChatOpenAI
 
-from flask import Flask, jsonify, request, render_template
-from werkzeug.datastructures import FileStorage
 import PyPDF2
 from io import BytesIO
 import os 

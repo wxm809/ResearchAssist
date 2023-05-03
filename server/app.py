@@ -1,28 +1,10 @@
-from flask import Flask, jsonify, request, render_template, redirect, url_for, make_response
-import json
+from flask import Flask, request, render_template, redirect, url_for, make_response
 import dill as pickle
 from classes import User, Conversation
 import os
-from werkzeug.utils import secure_filename
 from flask_socketio import SocketIO, send, emit
 import uuid
 import os
-from threading import Thread
-import json 
-class Thread_(Thread):
-    
-    def __init__(self, group=None, target=None, name=None,
-                 args=(), kwargs={}):
-        Thread.__init__(self, group, target, name, args, kwargs)
-        self._return = None
-
-    def run(self):
-        if self._target is not None:
-            self._return = self._target(*self._args,
-                                                **self._kwargs)
-    def join(self, *args):
-        Thread.join(self, *args)
-        return self._return
 
 #import eventlet 
 TEMPLATES_PATH = os.path.abspath('templates')

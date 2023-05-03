@@ -1,18 +1,82 @@
 <!DOCTYPE html>
 <html>
-  <head>
-    <meta charset="utf-8">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/water.css@2/out/water.css">
-    <title>Conversation page</title>
-  </head>
-  <body>
-    <h1>ResearchAssist</h1>
-    <h2>Conversation: {{ subject }}</h2>
-    <p>The following document(s) were uploaded:</p>
-    <ul>
-        {% for document in documents %}
-            <li>{{ document.extra_info }}</li>
-        {% endfor %}
-    </ul>
-  </body>
+
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/water.css@2/out/water.css">
+  <title>Conversation {{ conversation.subject }}</title>
+</head>
+
+<body>
+  <h1>ResearchAssist</h1>
+  <h2>Conversation: {{ conversation.subject }}</h2>
+  <p>The following document(s) were uploaded:</p>
+  <ul>
+    {% for document in conversation.documents %}
+    <li>{{ document.extra_info['title'] }}</li>
+    {% endfor %}
+  </ul>
+  <br>
+    {% for message in history %}
+    <p>{{ message }}</p>
+    {% endfor %}
+  <span id="chat"></span>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.6.1/socket.io.js"></script>
+  <script type="module">
+    import { html, render, useState, useEffect } from 'https://unpkg.com/htm/preact/standalone.module.js';
+    let socket = io.connect('127.0.0.1:6969');
+    let subject = '{{ conversation.subject }}';
+    console.log(history)
+    const Chat = ({ messages, setMessages, message, setMessage, onSubmit, onChange }) => {
+      return (
+        html`<div>
+            ${messages.length > 0 &&
+          messages.map(msg => (
+            html`<div>
+                    <p>${msg.from}: ${msg.text}</p>
+                </div>`
+          ))}
+            <textarea value=${message} name="message" onChange=${e => onChange(e)} style="width: 600px"/>
+            <button onClick=${(e) => onSubmit(e)}>Send Message</button>
+        </div>`
+      );
+    };
+
+    const ChatApp = () => {
+      const [messages, setMessages] = useState([]);
+      const [message, setMessage] = useState('');
+
+      useEffect(() => {
+        socket.on('message', (message) => {
+          setMessages([...messages, message]);
+        });
+      }, [messages]);
+
+      const onServerMessage = (message) => {
+        setMessages([...messages, message]);
+      };
+
+      socket.on('response', onServerMessage);
+
+      const onChange = (e) => {
+        setMessage(e.target.value);
+      };
+
+      const onSubmit = (e) => {
+        e.preventDefault();
+        if (message != '') {
+          socket.emit('message', { text: message, from: 'Human' , subject : subject});
+          setMessage('');
+        }
+      };
+
+      return (
+        html`<${Chat} messages=${messages} setMessages=${setMessages} message=${message} setMessage=${setMessage} onSubmit=${onSubmit} onChange=${onChange} />`
+      );
+    };
+    render(html`<${ChatApp} />`, document.getElementById('chat'));
+
+  </script>
+</body>
+
 </html>

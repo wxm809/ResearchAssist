@@ -2,14 +2,31 @@ from flask import Flask, jsonify, request, render_template, redirect, url_for, m
 import json
 import dill as pickle
 from classes import User, Conversation
-from llama_index import GPTSimpleVectorIndex
 import os
 from werkzeug.utils import secure_filename
-from flask_socketio import SocketIO, emit
+from flask_socketio import SocketIO, send, emit
 import uuid
 import os
+from threading import Thread
+import json 
+class Thread_(Thread):
+    
+    def __init__(self, group=None, target=None, name=None,
+                 args=(), kwargs={}):
+        Thread.__init__(self, group, target, name, args, kwargs)
+        self._return = None
 
-USER_OBJECTS_PATH = 'users'
+    def run(self):
+        if self._target is not None:
+            self._return = self._target(*self._args,
+                                                **self._kwargs)
+    def join(self, *args):
+        Thread.join(self, *args)
+        return self._return
+
+#import eventlet 
+TEMPLATES_PATH = os.path.abspath('templates')
+USER_OBJECTS_PATH = os.path.abspath('users')
 print(os.getcwd())
 if not os.path.exists(USER_OBJECTS_PATH):
     os.makedirs(USER_OBJECTS_PATH)
@@ -26,9 +43,9 @@ class ConversationNotFoundException(Exception):
 def userPath(user_id: str) -> str:
     return os.path.join(USER_OBJECTS_PATH, f"{user_id}.pkl")
 
-app = Flask(__name__)
+app = Flask(__name__, template_folder = TEMPLATES_PATH)
 
-socketio = SocketIO(app)
+socketio = SocketIO(app, cors_allowed_origins = '*')#, async_mode = 'eventlet')
 
 def putUser(user: User):
     if(os.path.exists(userPath(user.id))):
@@ -36,17 +53,20 @@ def putUser(user: User):
     print("Putting user")
     path = userPath(user.id)
     with open(path, 'wb') as f:
+        user.dumpUnpickleable()
         pickle.dump(user, f)
 
 def updateUser(user: User):
     print("Upload user")
     path = userPath(user.id)
     with open(path, 'wb') as f:
+        user.dumpUnpickleable()
         pickle.dump(user, f)
 
 def getUser(id: str) -> User:
     print('in getuser')
     path = userPath(id)
+    print(path)
     if not os.path.exists(path):
         raise UserNotInDatabaseException
     with open (path, 'rb') as f:
@@ -73,7 +93,7 @@ def handleFileUpload():
             files.remove(file)
     if(len(files) == 0):
         return redirect(url_for('index'))
-    user.constructGraphFromRequest(subject, files, disable = True)
+    user.constructGraphFromRequest(subject, files, disable = False)
     updateUser(user)
     # generate redirect to upload-complete
     return redirect(url_for('conversation', conversation_subject = subject))
@@ -115,24 +135,43 @@ def conversation(conversation_subject: str):
             return newUser()
         conversation = user.conversations.get(conversation_subject)
         print("conversation page")
-        print(user)
         print(user_id)
-        print(user.conversations)
-        print(conversation)
-        print(conversation_subject)
-        #print(conversation.documents)
-        return render_template("conversation.html", subject = conversation.subject, documents=conversation.documents)
-""" 
-def ask() -> str:
+        user = getUser(user_id)
+        conversation.build()
+        conversation_history = conversation.memory.load_memory_variables({})['chat_history'].split('\n')
+        return render_template("conversation.html", conversation=conversation, history = conversation_history)
+    
+@socketio.on('connect')
+def handleConnect():
+    print('Client connected')
+    return None 
+
+@socketio.on('message')
+def handleMessage(message):
+    print('Message: ' + message.get('text'))
+    print('from user: ' + request.cookies.get('user_id'))
+    send({'text': message.get('text'), 'from': 'Human'})
+    response(message.get('text'), message.get('subject'), request)
+    return None
+
+def response(text, subject, request):
     id = request.cookies.get('user_id')
-    user = getUser(id) #watch out for UserNotInDatabaseException when calling ask!
-    conversation = user.conversations.get(request.SOMETHING)
-    if conversation is None:
-        raise ConversationNotFoundException
-    userPrompt = request.SOMETHING_ELSE
-    response = "" """
+    try:
+        user = getUser(id)
+    except UserNotInDatabaseException:
+        return newUser()
+    conversation = user.conversations.get(subject) #this is insanely inefficient but whatever
+    if not conversation:
+        response = "Sorry, I don't know what you're talking about"
+    else:
+        conversation.build()
+        response = conversation.agentChain.run(input = text)
+        updateUser(user)
+        emit('response', {'text': response, 'from': 'AI'})
+    return None
 
 if __name__ == '__main__':
+    #eventlet.monkey_patch()
     socketio.run(app, host = "127.0.0.1", port= 6969, debug=True)
 
 

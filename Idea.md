@@ -22,3 +22,10 @@ Components:
 ❌ Handle requests with flask
 ❌ Send server response back to Javascript
 ❌ Display server response
+
+
+Current way:
+
+Pickle entire user and store that on disk
+New way:
+Store only the Documents in the conversation and rebuild the indices every time 
